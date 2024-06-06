@@ -1,0 +1,84 @@
+﻿@page "/"
+
+@using DateRangeFilter.Data
+@using DevExpress.Blazor.Internal
+@using DevExpress.Data.Filtering;
+@inject WeatherForecastService ForecastService
+<style>
+    .pager-container {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px;
+        border: 1px solid #d2d2d2;
+        border-top: none;
+    }
+</style>
+
+@if (forecasts == null) {
+    <p><em>Loading...</em></p>
+}
+else {
+    <DxGrid @ref="Grid" Data="@forecasts" PagerVisible="false"
+            PageSize="@PageSize" ShowFilterRow=true ShowGroupPanel=true
+            @bind-PageIndex="@ActivePageIndex"
+            FooterDisplayMode="GridFooterDisplayMode.Never">
+        <Columns>
+            <DxGridDataColumn Caption="Date" FieldName="Date" />
+            <DxGridDataColumn Caption="Temperature" FieldName="TemperatureC" />
+            <DxGridDataColumn Caption="Summary" FieldName="Summary" />
+        </Columns>
+    </DxGrid>
+    <div class="pager-container">
+        <DxPager PageCount="@PageCount" @bind-ActivePageIndex="@ActivePageIndex" />
+        <div>
+            @FirstRecord-@LastRecord of @TotalRecords
+        </div>
+    </div>
+}
+
+@code {
+    private WeatherForecast[]? forecasts;
+    int PageCount { get; set; }
+    int FirstRecord { get; set; }
+    int LastRecord { get; set; }
+    int TotalRecords { get; set; }
+    int PageSize { get; set; } = 6;
+    int ActivePageIndex { get; set; } = 0;
+    string RowCountField { get; set; } = "Country";
+    IGrid Grid;
+
+    protected override async Task OnInitializedAsync() {
+        forecasts = await ForecastService.GetForecastAsync(DateTime.Today.AddDays(-10));
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        var dataController = GridDataControllerUtils.GetDataController((DxGrid)Grid);
+        var visibleRowCount = Grid.GetVisibleRowCount();
+        var visibleDataRowCount = dataController.VisibleListSourceRowCount;
+        var firstVisibleIndex = Grid.GetStartRowVisibleIndex();
+        var firstRowHandle = dataController.GetControllerRowHandle(firstVisibleIndex);
+        if (dataController.IsGroupRowHandle(firstRowHandle))
+            firstRowHandle = dataController.GetControllerRowByGroupRow(firstRowHandle);
+        var lastVisibleIndex = firstVisibleIndex + PageSize - 1;
+        int lastRowHandle = 0;
+        if (lastVisibleIndex >= visibleRowCount)
+            lastRowHandle = visibleDataRowCount - 1;
+        else
+        {
+            lastRowHandle = dataController.GetControllerRowHandle(lastVisibleIndex);
+            if (dataController.IsGroupRowHandle(lastRowHandle))
+            {
+                var groupRowHandle = lastRowHandle;
+                lastRowHandle = dataController.GetControllerRowByGroupRow(lastRowHandle) - 1;
+            }
+            
+        }
+        FirstRecord = firstRowHandle + 1;
+        LastRecord = lastRowHandle + 1;
+        TotalRecords = visibleDataRowCount;
+        PageCount = (int)Math.Ceiling((decimal)visibleRowCount / PageSize);
+        StateHasChanged();
+        base.OnAfterRender(firstRender);
+    }
+}
